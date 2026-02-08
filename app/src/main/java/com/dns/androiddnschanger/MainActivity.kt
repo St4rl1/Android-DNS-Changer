@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import com.dns.androiddnschanger.ui.theme.AndroidDNSChangerTheme
 import android.widget.Toast
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Menu
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -97,7 +98,7 @@ fun MainScreen() {
                 )
 
                 Text(
-                    text = "Drag icon to reorder • Tap + to add",
+                    text = "Add servers, reorder by dragging, toggle in Quick Settings",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 20.dp)
@@ -534,12 +535,12 @@ fun TemplateSelectionDialog(
     existingDNS: List<DNSInfo> = emptyList()
 ) {
     val templates = listOf(
-        DNSTemplate("Cloudflare DNS", "one.one.one.one", R.drawable.ic_cloudflare),
-        DNSTemplate("Google DNS", "dns.google", R.drawable.ic_google),
         DNSTemplate("Mullvad DNS", "base.dns.mullvad.net", R.drawable.ic_mullvad),
-        DNSTemplate("Quad9 DNS", "dns.quad9.net", R.drawable.ic_quad9),
+        DNSTemplate("Cloudflare DNS", "one.one.one.one", R.drawable.ic_cloudflare),
         DNSTemplate("AdGuard DNS", "dns.adguard-dns.com", R.drawable.ic_adguard),
         DNSTemplate("OpenDNS", "dns.opendns.com", R.drawable.ic_opendns),
+        DNSTemplate("Quad9 DNS", "dns.quad9.net", R.drawable.ic_quad9),
+        DNSTemplate("Google DNS", "dns.google", R.drawable.ic_google),
     )
 
     AlertDialog(
@@ -697,7 +698,7 @@ fun CustomDNSDialog(
                 }
 
                 Text(
-                    text = "Example: dns.adguard.com or 1.1.1.1",
+                    text = "Example: base.dns.mullvad.net",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

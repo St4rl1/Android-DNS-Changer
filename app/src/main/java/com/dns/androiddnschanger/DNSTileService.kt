@@ -48,7 +48,6 @@ class DNSTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-
         if (!hasWriteSecureSettingsPermission()) {
             Toast.makeText(
                 this,
