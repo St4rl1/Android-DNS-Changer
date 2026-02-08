@@ -21,37 +21,6 @@ class DNSTileService : TileService() {
         updateTile()
     }
 
-    override fun onClick() {
-        super.onClick()
-
-        // Zkontroluj oprávnění
-        if (!hasWriteSecureSettingsPermission()) {
-            Toast.makeText(
-                this,
-                "Potřebuješ povolit ADB oprávnění!\n\nadb shell pm grant com.dns.androiddnschanger android.permission.WRITE_SECURE_SETTINGS",
-                Toast.LENGTH_LONG
-            ).show()
-            return
-        }
-
-        // Získej aktuální seznam DNS
-        val dnsServers = dnsManager.getAllDNS()
-
-        if (dnsServers.size <= 1) {
-            Toast.makeText(this, "Přidej DNS servery v aplikaci!", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        // Přepni na další DNS
-        currentIndex = (currentIndex + 1) % dnsServers.size
-        val dns = dnsServers[currentIndex]
-
-        setDNS(dns.hostname, dns.name)
-        updateTile()
-
-        Toast.makeText(this, "DNS: ${dns.name}", Toast.LENGTH_SHORT).show()
-    }
-
     private fun setDNS(hostname: String, name: String) {
         try {
             if (hostname == "off") {
@@ -77,9 +46,39 @@ class DNSTileService : TileService() {
         }
     }
 
+    override fun onClick() {
+        super.onClick()
+
+        if (!hasWriteSecureSettingsPermission()) {
+            Toast.makeText(
+                this,
+                "Potřebuješ povolit ADB oprávnění!\n\nadb shell pm grant com.dns.androiddnschanger android.permission.WRITE_SECURE_SETTINGS",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        // ⬇️ FILTRUJ JEN AKTIVNÍ DNS
+        val dnsServers = dnsManager.getAllDNS().filter { it.isActive }
+
+        if (dnsServers.size <= 1) {
+            Toast.makeText(this, "Přidej a aktivuj DNS servery v aplikaci!", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        currentIndex = (currentIndex + 1) % dnsServers.size
+        val dns = dnsServers[currentIndex]
+
+        setDNS(dns.hostname, dns.name)
+        updateTile()
+
+        Toast.makeText(this, "DNS: ${dns.name}", Toast.LENGTH_SHORT).show()
+    }
+
     private fun updateTile() {
         val tile = qsTile ?: return
-        val dnsServers = dnsManager.getAllDNS()
+        // ⬇️ FILTRUJ JEN AKTIVNÍ DNS
+        val dnsServers = dnsManager.getAllDNS().filter { it.isActive }
 
         if (currentIndex >= dnsServers.size) {
             currentIndex = 0
@@ -90,7 +89,6 @@ class DNSTileService : TileService() {
         tile.label = dns.name
         tile.state = if (dns.hostname == "off") Tile.STATE_INACTIVE else Tile.STATE_ACTIVE
 
-        // ⬇️ DYNAMICKÁ IKONA - mění se podle DNS providera
         val iconRes = dnsManager.getIconForDNS(dns)
         tile.icon = Icon.createWithResource(this, iconRes)
 

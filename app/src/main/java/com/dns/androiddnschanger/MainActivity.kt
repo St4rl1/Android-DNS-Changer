@@ -69,20 +69,12 @@ fun MainScreen() {
 
     val lazyListState = rememberLazyListState()
     val reorderableLazyListState = rememberReorderableLazyListState(lazyListState) { from, to ->
-        // Získej filtrovaný seznam (bez "off")
         val filteredList = dnsList.filter { it.hostname != "off" }
-
-        // Přeuspořádej pouze filtrovaný seznam
         val reorderedList = filteredList.toMutableList().apply {
             add(to.index, removeAt(from.index))
         }
-
-        // Aktualizuj celý seznam (zachovej "Off" na začátku)
         dnsList = listOf(dnsList.first { it.hostname == "off" }) + reorderedList
-
-        // Ulož nové pořadí
         dnsManager.saveOrder(reorderedList)
-
         hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
 
@@ -170,9 +162,9 @@ fun MainScreen() {
                                         }
                                     } else null,
                                     onEdit = if (dns.isCustom) {
-                                        { newName, newHostname ->
+                                        { newName, newHostname, isActive ->
                                             dnsManager.removeDNS(dns)
-                                            dnsManager.addCustomDNS(newName, newHostname)
+                                            dnsManager.addCustomDNS(newName, newHostname, isActive)
                                             dnsList = dnsManager.getAllDNS()
                                         }
                                     } else null
@@ -183,7 +175,6 @@ fun MainScreen() {
                 }
             }
 
-            // FAB Add vpravo dole
             FloatingActionButton(
                 onClick = { showCustomDialog = true },
                 containerColor = MaterialTheme.colorScheme.secondary,
@@ -198,7 +189,6 @@ fun MainScreen() {
                 )
             }
 
-            // FAB Settings vlevo dole
             FloatingActionButton(
                 onClick = {
                     context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
@@ -217,7 +207,6 @@ fun MainScreen() {
         }
     }
 
-    // Dialogy zůstávají stejné...
     if (showTemplateDialog) {
         TemplateSelectionDialog(
             onDismiss = { showTemplateDialog = false },
@@ -266,7 +255,7 @@ fun DNSCard(
     elevation: Dp = 0.dp,
     dragModifier: Modifier = Modifier,
     onDelete: (() -> Unit)? = null,
-    onEdit: ((String, String) -> Unit)? = null
+    onEdit: ((String, String, Boolean) -> Unit)? = null
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
@@ -277,10 +266,13 @@ fun DNSCard(
             .animateContentSize(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (dns.isCustom)
+            containerColor = if (!dns.isActive) {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            } else if (dns.isCustom) {
                 MaterialTheme.colorScheme.secondaryContainer
-            else
+            } else {
                 MaterialTheme.colorScheme.surfaceVariant
+            }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = elevation)
     ) {
@@ -288,34 +280,54 @@ fun DNSCard(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // DRAG HANDLE - ikona vlevo
             Icon(
                 imageVector = Icons.Default.Menu,
                 contentDescription = "Reorder",
                 modifier = dragModifier
                     .padding(end = 8.dp)
                     .size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = if (dns.isActive) 0.5f else 0.3f
+                )
             )
 
             Image(
                 painter = painterResource(id = dns.iconRes),
                 contentDescription = dns.name,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier
+                    .size(28.dp)
+                    .alpha(if (dns.isActive) 1f else 0.4f)
             )
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = dns.name,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = dns.name,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (dns.isActive) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        }
+                    )
+                    if (!dns.isActive) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "• Inactive",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                }
                 Text(
                     text = dns.hostname,
                     fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                        alpha = if (dns.isActive) 1f else 0.5f
+                    ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -326,7 +338,12 @@ fun DNSCard(
                     Icon(
                         imageVector = Icons.Default.Edit,
                         contentDescription = "Edit",
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp),
+                        tint = if (dns.isActive) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        }
                     )
                 }
             }
@@ -390,8 +407,8 @@ fun DNSCard(
         EditDNSDialog(
             dns = dns,
             onDismiss = { showEditDialog = false },
-            onSave = { newName, newHostname ->
-                onEdit?.invoke(newName, newHostname)
+            onSave = { newName, newHostname, isActive ->
+                onEdit?.invoke(newName, newHostname, isActive)
                 showEditDialog = false
             }
         )
@@ -403,10 +420,11 @@ fun DNSCard(
 fun EditDNSDialog(
     dns: DNSInfo,
     onDismiss: () -> Unit,
-    onSave: (name: String, hostname: String) -> Unit
+    onSave: (name: String, hostname: String, isActive: Boolean) -> Unit
 ) {
     var name by remember { mutableStateOf(dns.name) }
     var hostname by remember { mutableStateOf(dns.hostname) }
+    var isActive by remember { mutableStateOf(dns.isActive) }
     var showError by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -442,6 +460,33 @@ fun EditDNSDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                HorizontalDivider()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Show in Quick Settings",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isActive) "Visible in tile rotation" else "Hidden from tiles",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Switch(
+                        checked = isActive,
+                        onCheckedChange = { isActive = it }
+                    )
+                }
+
                 if (showError) {
                     Text(
                         text = "Both fields are required",
@@ -457,7 +502,7 @@ fun EditDNSDialog(
                     if (name.isBlank() || hostname.isBlank()) {
                         showError = true
                     } else {
-                        onSave(name, hostname)
+                        onSave(name, hostname, isActive)
                     }
                 },
                 colors = ButtonDefaults.textButtonColors(
@@ -706,6 +751,7 @@ data class DNSInfo(
     val name: String,
     val hostname: String,
     val iconRes: Int,
+    val isActive: Boolean = true,
     val isCustom: Boolean = false
 )
 
@@ -730,16 +776,14 @@ class DNSManager(private val context: Context) {
             dns.hostname.contains("quad9", ignoreCase = true) -> R.drawable.ic_quad9
             dns.hostname.contains("adguard", ignoreCase = true) -> R.drawable.ic_adguard
             dns.hostname.contains("opendns", ignoreCase = true) -> R.drawable.ic_opendns
-            else -> dns.iconRes // Použij ikonu z DNSInfo
+            else -> dns.iconRes
         }
     }
 
-    fun addCustomDNS(name: String, hostname: String) {
+    fun addCustomDNS(name: String, hostname: String, isActive: Boolean = true) {
         val current = getCustomDNS().toMutableList()
-
         val iconRes = getIconForName(name)
-        val newDNS = DNSInfo(name, hostname, iconRes, isCustom = true)
-
+        val newDNS = DNSInfo(name, hostname, iconRes, isActive = isActive, isCustom = true)
         current.add(newDNS)
         saveCustomDNS(current)
     }
@@ -767,6 +811,13 @@ class DNSManager(private val context: Context) {
         }
     }
 
+    private fun saveCustomDNS(list: List<DNSInfo>) {
+        val json = list.joinToString(",", "[", "]") { dns ->
+            """{"name":"${dns.name}","hostname":"${dns.hostname}","isActive":${dns.isActive}}"""
+        }
+        prefs.edit().putString(CUSTOM_DNS_KEY, json).apply()
+    }
+
     private fun getCustomDNS(): List<DNSInfo> {
         val json = prefs.getString(CUSTOM_DNS_KEY, "[]") ?: "[]"
         return try {
@@ -777,21 +828,17 @@ class DNSManager(private val context: Context) {
                 if (parts.size >= 2) {
                     val name = parts[0].split(":")[1].trim('"')
                     val hostname = parts[1].split(":")[1].trim('"')
+                    val isActive = if (parts.size >= 3) {
+                        parts[2].split(":")[1].trim().toBoolean()
+                    } else true
                     val iconRes = getIconForName(name)
 
-                    DNSInfo(name, hostname, iconRes, isCustom = true)
+                    DNSInfo(name, hostname, iconRes, isActive = isActive, isCustom = true)
                 } else null
             }
         } catch (e: Exception) {
             emptyList()
         }
-    }
-
-    private fun saveCustomDNS(list: List<DNSInfo>) {
-        val json = list.joinToString(",", "[", "]") { dns ->
-            """{"name":"${dns.name}","hostname":"${dns.hostname}"}"""
-        }
-        prefs.edit().putString(CUSTOM_DNS_KEY, json).apply()
     }
 }
 
