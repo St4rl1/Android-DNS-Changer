@@ -1,5 +1,6 @@
 package com.dns.androiddnschanger
 
+import android.graphics.drawable.Icon
 import android.provider.Settings
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
@@ -7,15 +8,13 @@ import android.widget.Toast
 
 class DNSTileService : TileService() {
 
-    // DNS servery pro přepínání
-    private val dnsServers = listOf(
-        DNSOption("Off", "off", null),
-        DNSOption("Cloudflare", "hostname", "1.1.1.1"),
-        DNSOption("Google", "hostname", "dns.google"),
-        DNSOption("AdGuard", "hostname", "dns.adguard.com")
-    )
-
     private var currentIndex = 0
+    private lateinit var dnsManager: DNSManager
+
+    override fun onCreate() {
+        super.onCreate()
+        dnsManager = DNSManager(this)
+    }
 
     override fun onStartListening() {
         super.onStartListening()
@@ -27,7 +26,19 @@ class DNSTileService : TileService() {
 
         // Zkontroluj oprávnění
         if (!hasWriteSecureSettingsPermission()) {
-            Toast.makeText(this, "Potřebuješ povolit ADB oprávnění!", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                this,
+                "Potřebuješ povolit ADB oprávnění!\n\nadb shell pm grant com.dns.androiddnschanger android.permission.WRITE_SECURE_SETTINGS",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        // Získej aktuální seznam DNS
+        val dnsServers = dnsManager.getAllDNS()
+
+        if (dnsServers.size <= 1) {
+            Toast.makeText(this, "Přidej DNS servery v aplikaci!", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -35,25 +46,30 @@ class DNSTileService : TileService() {
         currentIndex = (currentIndex + 1) % dnsServers.size
         val dns = dnsServers[currentIndex]
 
-        setDNS(dns)
+        setDNS(dns.hostname, dns.name)
         updateTile()
 
         Toast.makeText(this, "DNS: ${dns.name}", Toast.LENGTH_SHORT).show()
     }
 
-    private fun setDNS(dns: DNSOption) {
+    private fun setDNS(hostname: String, name: String) {
         try {
-            Settings.Global.putString(
-                contentResolver,
-                "private_dns_mode",
-                dns.mode
-            )
-
-            if (dns.hostname != null) {
+            if (hostname == "off") {
+                Settings.Global.putString(
+                    contentResolver,
+                    "private_dns_mode",
+                    "off"
+                )
+            } else {
+                Settings.Global.putString(
+                    contentResolver,
+                    "private_dns_mode",
+                    "hostname"
+                )
                 Settings.Global.putString(
                     contentResolver,
                     "private_dns_specifier",
-                    dns.hostname
+                    hostname
                 )
             }
         } catch (e: Exception) {
@@ -63,10 +79,21 @@ class DNSTileService : TileService() {
 
     private fun updateTile() {
         val tile = qsTile ?: return
+        val dnsServers = dnsManager.getAllDNS()
+
+        if (currentIndex >= dnsServers.size) {
+            currentIndex = 0
+        }
+
         val dns = dnsServers[currentIndex]
 
         tile.label = dns.name
-        tile.state = if (dns.mode == "off") Tile.STATE_INACTIVE else Tile.STATE_ACTIVE
+        tile.state = if (dns.hostname == "off") Tile.STATE_INACTIVE else Tile.STATE_ACTIVE
+
+        // ⬇️ DYNAMICKÁ IKONA - mění se podle DNS providera
+        val iconRes = dnsManager.getIconForDNS(dns)
+        tile.icon = Icon.createWithResource(this, iconRes)
+
         tile.updateTile()
     }
 
@@ -78,10 +105,4 @@ class DNSTileService : TileService() {
             false
         }
     }
-
-    data class DNSOption(
-        val name: String,
-        val mode: String,
-        val hostname: String?
-    )
 }

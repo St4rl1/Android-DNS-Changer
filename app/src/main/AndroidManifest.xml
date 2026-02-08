@@ -12,7 +12,8 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AndroidDNSChanger">
+        android:theme="@style/Theme.AndroidDNSChanger"
+        tools:targetApi="31">
 
         <activity
             android:name=".MainActivity"
@@ -27,7 +28,7 @@
 
         <service
             android:name=".DNSTileService"
-            android:icon="@drawable/ic_launcher_foreground"
+            android:icon="@drawable/ic_cloud"
             android:label="DNS Toggle"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true">
